@@ -126,6 +126,48 @@
         .results-stats div:last-child {
             border-bottom: none;
         }
+
+        /* 모바일 터치 컨트롤 */
+        #touch-controls {
+            position: fixed;
+            bottom: 40px;
+            left: 0;
+            width: 100%;
+            padding: 0 40px;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: space-between;
+            z-index: 1000;
+        }
+        #touch-controls.hidden {
+            display: none !important;
+        }
+        .touch-btn {
+            background: rgba(255,255,255,0.15);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            width: 80px;
+            height: 80px;
+            font-size: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            user-select: none;
+            touch-action: manipulation; /* 모바일 반응속도 최적화 */
+            cursor: pointer;
+        }
+        .touch-btn:active {
+            background: rgba(255,255,255,0.4);
+            transform: scale(0.95);
+        }
+        
+        /* PC 환경 등 큰 화면에서는 터치버튼 숨김 */
+        @media (min-width: 769px) {
+            #touch-controls {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -184,6 +226,7 @@
         </div>
         
         <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+            <button id="send-gas-btn" style="background: linear-gradient(90deg, #f59e0b, #ea580c);">결과 구글 시트로 전송하기</button>
             <button id="download-csv-btn" style="background: linear-gradient(90deg, #10b981, #047857);">결과 엑셀로 받기 (CSV)</button>
             <button onclick="location.reload()" style="background: rgba(255,255,255,0.2); box-shadow: none;">처음으로 돌아가기</button>
         </div>
@@ -191,6 +234,12 @@
 
     <!-- 자극(화살표) 표시 영역 -->
     <div id="stimulus"></div>
+
+    <!-- 모바일 전용 터치 버튼 -->
+    <div id="touch-controls" class="hidden">
+        <div class="touch-btn" id="btn-left">⬅️</div>
+        <div class="touch-btn" id="btn-right">➡️</div>
+    </div>
 </div>
 
 <script>
@@ -302,6 +351,8 @@
     }
 
     function showFixation() {
+        document.getElementById('touch-controls').classList.remove('hidden'); // 모바일 터치패드 출력
+
         stimulusEl.classList.remove('hidden');
         stimulusEl.style.display = 'block';
         stimulusEl.style.color = '#fff';
@@ -371,17 +422,23 @@
             document.getElementById('start-main-btn').click();
             return;
         }
+        
+        processInput(e.key);
+    });
 
+    function processInput(inputKey) {
         if (!isWaitingForResponse) return;
 
         const leftKeys = ['ArrowLeft', '4', 'a', 'A'];
         const rightKeys = ['ArrowRight', '6', 'd', 'D'];
 
-        if (leftKeys.includes(e.key) || rightKeys.includes(e.key)) {
-            // 방향키/단축키 입력 시 기본 타임아웃 취소
-            clearTimeout(stimulusTimeoutId);
+        let normalizedKey = null;
+        if (leftKeys.includes(inputKey)) normalizedKey = 'ArrowLeft';
+        else if (rightKeys.includes(inputKey)) normalizedKey = 'ArrowRight';
 
-            let normalizedKey = leftKeys.includes(e.key) ? 'ArrowLeft' : 'ArrowRight';
+        if (normalizedKey) {
+            // 방향키/단축키/터치 입력 시 기본 타임아웃 취소
+            clearTimeout(stimulusTimeoutId);
 
             const rt = performance.now() - startTime;
             const trial = trials[currentTrial];
@@ -410,7 +467,7 @@
             if (currentPhase === 'practice') {
                 // 연습 단계에서만 시각적 피드백 제공 (정답: 초록, 오답: 빨강)
                 stimulusEl.style.color = isCorrect ? '#4ade80' : '#f87171';
-                feedbackDelay = 300; // 피드백을 보여주기 위해 300ms 대기
+                feedbackDelay = 300; // 피드백을 보여주기 위해 대기
             } else {
                 // 실제 과제에서는 피드백 없이 즉시 화면 비우기
                 stimulusEl.textContent = '';
@@ -429,9 +486,10 @@
                 }
             }, feedbackDelay);
         }
-    });
+    }
 
     function endPhase() {
+        document.getElementById('touch-controls').classList.add('hidden'); // 모바일 터치패드 숨김
         stimulusEl.style.display = 'none';
         
         if (currentPhase === 'practice') {
@@ -503,6 +561,67 @@
         link.click();
         document.body.removeChild(link);
     });
+
+    // 구글 시트로 결과 전송 기능
+//... (kept below)
+    document.getElementById('send-gas-btn').addEventListener('click', () => {
+        // [주의] 여기에 배포한 Google Apps Script 웹앱 URL을 입력하세요.
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbyzakRI9ZWwUr6b7lRtgXVEynLjwiF_sL3v0tzcnnbs6rUSdFQ5pYkAbS0f82wHa1kj/exec';
+        
+        if (GAS_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEBAPP_URL_HERE') {
+            alert('먼저 소스 코드 내부의 GAS_URL 항목을 본인의 구글 웹앱 주소로 수정해주세요!');
+            return;
+        }
+
+        const btn = document.getElementById('send-gas-btn');
+        btn.textContent = '전송 중... ⏳';
+        btn.disabled = true;
+
+        const payload = resultsData.map(row => ({
+            participant_id: row.participant_id,
+            timestamp: row.timestamp,
+            condition: row.condition,
+            level: row.level,
+            trial: row.trial,
+            stimulus: row.stimulus,
+            stimulus_2: row.type === 'congruent' ? '일치' : (row.type === 'incongruent' ? '불일치' : '중립'),
+            correct_response: row.correct_response,
+            participant_response: row.participant_response,
+            correct: row.correct,
+            rt_ms: row.rt_ms
+        }));
+
+        fetch(GAS_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            headers: {
+                'Content-Type': 'text/plain;charset=utf-8' // CORS 방지를 위해 text/plain 사용 권장
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.result === 'success') {
+                alert('정상적으로 시트에 저장되었습니다!');
+                btn.textContent = '전송 완료 ✅';
+                btn.style.background = 'linear-gradient(90deg, #4ade80, #16a34a)';
+            } else {
+                throw new Error(data.error || '알 수 없는 에러');
+            }
+        })
+        .catch(err => {
+            alert('전송에 실패했습니다: ' + err.message);
+            btn.textContent = '다시 시도하기';
+            btn.disabled = false;
+        });
+    });
+
+    // 터치 버튼 이벤트 바인딩
+    document.getElementById('btn-left').addEventListener('touchstart', (e) => { e.preventDefault(); processInput('ArrowLeft'); }, {passive: false});
+    document.getElementById('btn-right').addEventListener('touchstart', (e) => { e.preventDefault(); processInput('ArrowRight'); }, {passive: false});
+    // 마우스 클릭 (PC 확인용)
+    document.getElementById('btn-left').addEventListener('mousedown', (e) => { e.preventDefault(); processInput('ArrowLeft'); });
+    document.getElementById('btn-right').addEventListener('mousedown', (e) => { e.preventDefault(); processInput('ArrowRight'); });
+
 </script>
 
 </body>
