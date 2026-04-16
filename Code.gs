@@ -60,12 +60,10 @@ function doPost(e) {
     }
 
     return ContentService.createTextOutput(JSON.stringify({"result":"success"}))
-      .setMimeType(ContentService.MimeType.JSON)
-      .setHeaders(headers);
+      .setMimeType(ContentService.MimeType.JSON);
   } catch(error) {
     return ContentService.createTextOutput(JSON.stringify({"result":"error", "error": error.toString()}))
-      .setMimeType(ContentService.MimeType.JSON)
-      .setHeaders(headers);
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
@@ -77,6 +75,5 @@ function doOptions(e) {
     'Access-Control-Allow-Headers': 'Content-Type'
   };
   return ContentService.createTextOutput('')
-    .setMimeType(ContentService.MimeType.TEXT)
-    .setHeaders(headers);
+    .setMimeType(ContentService.MimeType.TEXT);
 }
